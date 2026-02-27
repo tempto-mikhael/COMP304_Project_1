@@ -336,7 +336,17 @@ int process_command(struct command_t *command) {
 
     // TODO: do your own exec with path resolving using execv()
     // do so by replacing the execvp call below
-    execvp(command->name, command->args); // exec+args+path
+    char *path_list = getenv("PATH");
+    char path_copy[1024];
+    strcpy(path_copy, path_list);
+
+    char *directories = strtok(path_copy, ":");
+    while (directories != NULL) {
+	char full_path[4096];
+	snprintf(full_path, sizeof(full_path), "%s/%s", directories, command->name);
+	execv(full_path, command->args);
+	directories = strtok(NULL, ":");
+    }
     printf("-%s: %s: command not found\n", sysname, command->name);
     exit(127);
   } else {
