@@ -351,7 +351,12 @@ int process_command(struct command_t *command) {
     exit(127);
   } else {
     // TODO: implement background processes here
-    wait(0); // wait for child process to finish
+    if (command->background) {
+	printf("background process pid %d\n", pid);
+    }else {
+	
+    wait(0);
+   } 
     return SUCCESS;
   }
 }
