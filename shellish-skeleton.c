@@ -323,6 +323,69 @@ int process_command(struct command_t *command) {
       return SUCCESS;
     }
   }
+  if (command->next){
+	int file_d[2];
+	if (pipe(file_d) == -1) {
+	   printf("error");
+	   return UNKNOWN; }
+
+  pid_t pid_pipe_left = fork();
+  if (pid_pipe_left == 0){
+  dup2(file_d[1],1);
+  close(file_d[0]);
+  close(file_d[1]);
+
+    char *path_list = getenv("PATH");
+    char path_copy[1024];
+    strcpy(path_copy, path_list);
+
+    char *directories = strtok(path_copy, ":");
+    while (directories != NULL) {
+
+        char full_path[1024];
+        snprintf(full_path, sizeof(full_path), "%s/%s", directories, command->name);
+        execv(full_path, command->args);
+        directories = strtok(NULL, ":");
+    }
+    printf("%s: command not found\n", command->name);
+    exit(127);
+
+}
+
+pid_t pid_pipe_right = fork(); 
+
+if(pid_pipe_right == 0){
+
+	dup2(file_d[0],0);
+	close(file_d[0]);
+	close(file_d[1]);
+
+    char *path_list = getenv("PATH");
+    char path_copy[1024];
+    strcpy(path_copy, path_list);
+
+    char *directories = strtok(path_copy, ":");
+    while (directories != NULL) {
+
+        char full_path[1024];
+        snprintf(full_path, sizeof(full_path), "%s/%s", directories, command->next->name);
+        execv(full_path, command->next->args);
+        directories = strtok(NULL, ":");
+    }
+    printf("%s: command not found\n", command->name);
+    exit(127);
+
+}
+close(file_d[0]);
+close(file_d[1]);
+
+waitpid(pid_pipe_left, NULL,0);
+waitpid(pid_pipe_right, NULL,0);
+
+return SUCCESS;
+
+
+}
 
   pid_t pid = fork();
   if (pid == 0) // child
@@ -374,12 +437,13 @@ int process_command(struct command_t *command) {
 
     char *directories = strtok(path_copy, ":");
     while (directories != NULL) {
-	char full_path[4096];
+
+	char full_path[1024];
 	snprintf(full_path, sizeof(full_path), "%s/%s", directories, command->name);
 	execv(full_path, command->args);
 	directories = strtok(NULL, ":");
     }
-    printf("-%s: %s: command not found\n", sysname, command->name);
+    printf("%s: command not found\n", command->name);
     exit(127);
   } else {
     // TODO: implement background processes here
