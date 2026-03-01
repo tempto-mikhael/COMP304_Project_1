@@ -7,6 +7,11 @@
 #include <termios.h> // termios, TCSANOW, ECHO, ICANON
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <dirent.h>
 
 #define MAX_ARG_LENGTH 1024
 #define MAX_FIELDS 256
@@ -327,6 +332,124 @@ int process_command(struct command_t *command) {
       return SUCCESS;
     }
   }
+
+if (strcmp(command->name, "chatroom") == 0) {
+
+    if (command->arg_count < 3) {
+        printf("Usage: chatroom <roomname> <username>\n");
+        return UNKNOWN;
+    }
+
+    char *roomname = command->args[1];
+    char *username = command->args[2];
+
+    char room_path[MAX_LINE_LENGTH];
+    snprintf(room_path, sizeof(room_path),
+             "/tmp/chatroom-%s", roomname);
+
+    // if doesn't exist: create room
+    mkdir(room_path, 0777);
+
+    char user_pipe[MAX_LINE_LENGTH];
+    snprintf(user_pipe, sizeof(user_pipe),
+             "%s/%s", room_path, username);
+
+    // if doesn't exist :create user fifo
+    mkfifo(user_pipe, 0666);
+
+    printf("Welcome to %s!\n", roomname);
+
+    pid_t reader_pid = fork();
+
+    if (reader_pid == 0) {
+        int fd = open(user_pipe, O_RDONLY);
+
+        char msg[MAX_LINE_LENGTH];
+
+        while (1) {
+            int n = read(fd, msg, sizeof(msg) - 1);
+
+            if (n > 0) {
+                msg[n] = '\0';
+                printf("%s", msg);
+                fflush(stdout);
+            }
+            else if (n <= 0) {
+                break;  // EOF or error
+            }
+        }
+
+        close(fd);
+        exit(0);
+    }
+
+    //parent:send messages
+
+    char input[MAX_LINE_LENGTH];
+
+    while (1) {
+
+        printf("[%s] %s > ", roomname, username);
+        fflush(stdout);
+
+        if (fgets(input, MAX_LINE_LENGTH, stdin) == NULL)
+            break;
+
+        int len = strlen(input);
+        if (len > 0 && input[len - 1] == '\n')
+            input[len - 1] = '\0';
+
+        if (strlen(input) == 0)
+            continue;
+
+        char message[MAX_LINE_LENGTH];
+        snprintf(message, sizeof(message),
+                 "[%s] %s: %s\n",
+                 roomname, username, input);
+
+        DIR *dir = opendir(room_path);
+        if (!dir)
+            continue;
+
+        struct dirent *entry;
+
+        while ((entry = readdir(dir)) != NULL) {
+
+            if (strcmp(entry->d_name, ".") == 0 ||
+                strcmp(entry->d_name, "..") == 0 ||
+                strcmp(entry->d_name, username) == 0)
+                continue;
+
+           pid_t wpid = fork();
+
+           if (wpid == 0) {
+
+                char pipe_path[MAX_LINE_LENGTH];
+                snprintf(pipe_path, sizeof(pipe_path),
+                         "%s/%s", room_path, entry->d_name);
+
+                int fd = open(pipe_path, O_WRONLY | O_NONBLOCK);
+
+                if (fd != -1) {
+                    write(fd, message, strlen(message));
+                    close(fd);
+                }
+
+                exit(0);
+            }
+        }
+
+        closedir(dir);
+
+        // finished writer children
+        while (waitpid(-1, NULL, WNOHANG) > 0);
+    }
+
+    kill(reader_pid, SIGKILL);   // exit termination
+    waitpid(reader_pid, NULL, 0);
+
+    return SUCCESS;
+}
 
 if (strcmp (command->name, "cut") == 0) {
 	
