@@ -362,11 +362,17 @@ if (strcmp(command->name, "chatroom") == 0) {
     pid_t reader_pid = fork();
 
     if (reader_pid == 0) {
-        int fd = open(user_pipe, O_RDONLY);
 
-        char msg[MAX_LINE_LENGTH];
+    char msg[MAX_LINE_LENGTH];
+
+    while (1) {
+
+        int fd = open(user_pipe, O_RDONLY);
+        if (fd == -1)
+            exit(1);
 
         while (1) {
+
             int n = read(fd, msg, sizeof(msg) - 1);
 
             if (n > 0) {
@@ -374,14 +380,14 @@ if (strcmp(command->name, "chatroom") == 0) {
                 printf("%s", msg);
                 fflush(stdout);
             }
-            else if (n <= 0) {
-                break;  // EOF or error
+            else {
+                break;   
             }
         }
 
         close(fd);
-        exit(0);
     }
+}
 
     //parent:send messages
 
