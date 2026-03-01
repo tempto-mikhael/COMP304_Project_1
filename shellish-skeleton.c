@@ -359,6 +359,10 @@ if(pid_pipe_right == 0){
 	dup2(file_d[0],0);
 	close(file_d[0]);
 	close(file_d[1]);
+    if (command->next->next) {
+	exit(process_command(command->next));
+}
+    else{
 
     char *path_list = getenv("PATH");
     char path_copy[1024];
@@ -375,6 +379,7 @@ if(pid_pipe_right == 0){
     printf("%s: command not found\n", command->name);
     exit(127);
 
+}
 }
 close(file_d[0]);
 close(file_d[1]);
