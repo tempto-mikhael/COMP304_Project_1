@@ -7,6 +7,10 @@
 #include <termios.h> // termios, TCSANOW, ECHO, ICANON
 #include <unistd.h>
 #include <fcntl.h>
+
+#define MAX_ARG_LENGTH 1024
+#define MAX_FIELDS 256
+#define MAX_LINE_LENGTH 4096
 const char *sysname = "shellish";
 
 enum return_codes {
@@ -323,6 +327,81 @@ int process_command(struct command_t *command) {
       return SUCCESS;
     }
   }
+
+if (strcmp (command->name, "cut") == 0) {
+	
+   char delimiter = '\t';
+   char *fields_arg = NULL; 
+
+   for (int i= 1; i < command->arg_count; i++){
+       if (strcmp(command->args[i], "-d") == 0 ||
+           strcmp (command->args[i], "--delimiter") == 0){
+	   if (i + 1 < command->arg_count){
+		delimiter = command->args[i+1][0];
+	 	i++;
+}
+}
+
+if (strcmp (command->args[i], "-f") == 0 || 
+    strcmp(command->args[i], "--fields") == 0){
+	if (i+1 < command->arg_count){
+           fields_arg = command->args[i+1];
+	   i++;
+}
+}
+}
+if (fields_arg == NULL) {
+    printf("cut: error missing -f field");
+return UNKNOWN; }
+
+int fields[MAX_FIELDS];
+int field_count = 0;
+
+char fields_copy[512];
+strcpy(fields_copy, fields_arg);
+char *token = strtok(fields_copy, ",");
+
+while (token != NULL){
+	fields[field_count++] = atoi(token) - 1;
+	token = strtok(NULL,",");
+}
+
+char line[MAX_LINE_LENGTH];
+
+while (fgets(line, MAX_LINE_LENGTH, stdin) != NULL) {
+
+	int len = strlen(line);
+	if (len > 0 && line[len-1] == '\n')
+		line[--len] = '\0';
+
+char *parts[256];
+int part_count = 0;
+
+char *start = line;
+char *p = line;
+
+while (*p != '\0'){
+	if (*p == delimiter) {
+	    *p = '\0';
+	    parts[part_count++] = start;
+	    start = p + 1;
+        }
+        p++;
+}
+parts[part_count++] = start;
+
+for (int i= 0; i < field_count;i++){
+	if (fields[i] >= 0 && fields[i] < part_count){
+	   printf("%s", parts[fields[i]]);
+    }
+    if (i < field_count - 1)
+	printf("%c", delimiter);
+}
+printf("\n");
+} 
+
+   return SUCCESS;
+}
   if (command->next){
 	int file_d[2];
 	if (pipe(file_d) == -1) {
